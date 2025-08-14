@@ -1,0 +1,31 @@
+{
+  "name": "invoice-xml-to-pdf-converter",
+  "version": "1.0.1",
+  "description": "XML faturalarını HTML veya PDF'e dönüştüren, Java ve wkhtmltopdf kullanan bir araç.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js",
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "index.js",
+    "install.js",
+    "InvoiceConverter.jar"
+  ],
+  "bin": {
+    "invoice-xml-to-pdf-converter": "./index.js"
+  },
+  "keywords": [
+    "invoice",
+    "xml",
+    "pdf",
+    "html",
+    "converter"
+  ],
+  "author": "salihoz0",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.2"
+  }
+}
