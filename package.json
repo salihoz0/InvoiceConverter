@@ -1,6 +1,6 @@
 {
   "name": "invoice-xml-to-pdf-converter",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "XML faturalarını HTML veya PDF'e dönüştüren, Java ve wkhtmltopdf kullanan bir araç.",
   "main": "index.js",
   "scripts": {
