@@ -11,7 +11,8 @@
   "files": [
     "index.js",
     "install.js",
-    "InvoiceConverter.jar"
+    "InvoiceConverter.jar",
+    "lib/*"
   ],
   "bin": {
     "invoice-xml-to-pdf-converter": "./index.js"

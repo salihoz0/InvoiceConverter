@@ -14,7 +14,10 @@ const converter = new InvoiceConverter();
     fs.writeFileSync('invoice.html', html, 'utf-8');
 
     // PDF (Base64) almak
+    console.time('PDF dönüşüm süresi');
     const pdfBase64 = await converter.convertToPdfBase64(xmlString);
+    console.timeEnd('PDF dönüşüm süresi');
+
     console.log('PDF Base64 uzunluğu:', pdfBase64.length);
 
     // PDF dosyaya yazmak

@@ -65,29 +65,28 @@ public class InvoiceConverter {
     }
 
     public String htmlToPdfBase64(String html) throws Exception {
-        String wkhtmltopdfPath = System.getenv("WKHTMLTOPDF_PATH");
-        if (wkhtmltopdfPath == null || wkhtmltopdfPath.isEmpty()) {
-            wkhtmltopdfPath = "wkhtmltopdf";
-        }
-
-        ProcessBuilder pb = new ProcessBuilder(wkhtmltopdfPath, "--encoding", "UTF-8", "-", "-");
+        ProcessBuilder pb = new ProcessBuilder("wkhtmltopdf", "--encoding", "UTF-8", "-", "-");
         pb.redirectErrorStream(true);
-
         Process proc = pb.start();
 
+        // Writer thread
         try (OutputStream os = proc.getOutputStream()) {
             os.write(html.getBytes(StandardCharsets.UTF_8));
         }
 
+        // Reader thread
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (InputStream is = proc.getInputStream()) {
-            is.transferTo(baos);
+            byte[] buffer = new byte[64 * 1024]; // 64KB buffer
+            int read;
+            while ((read = is.read(buffer)) != -1) {
+                baos.write(buffer, 0, read);
+            }
         }
 
         int exitCode = proc.waitFor();
-        if (exitCode != 0) {
-            throw new RuntimeException("wkhtmltopdf failed with exit code " + exitCode);
-        }
+        if (exitCode != 0)
+            throw new RuntimeException("wkhtmltopdf failed: " + exitCode);
 
         return Base64.getEncoder().encodeToString(baos.toByteArray());
     }
