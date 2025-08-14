@@ -11,6 +11,11 @@ import org.xml.sax.InputSource;
 public class InvoiceConverter {
 
     private Document parseXmlString(String xmlContent) throws Exception {
+        xmlContent = xmlContent.replaceAll("^\\uFEFF", "");
+
+        // Baştaki boşluk/newline karakterlerini sil
+        xmlContent = xmlContent.trim();
+
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         try {
