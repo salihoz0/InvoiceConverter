@@ -26,6 +26,11 @@ public class InvoiceConverter {
     }
 
     public String transformXmlToHtml(String xmlContent) throws Exception {
+        // 1️⃣ XSLTC yerine klasik Transformer kullanmak için sistem property
+        System.setProperty("javax.xml.transform.TransformerFactory",
+                "org.apache.xalan.processor.TransformerFactoryImpl");
+
+        // 2️⃣ XML parse işlemi
         Document doc = parseXmlString(xmlContent);
 
         NodeList xslList = doc.getElementsByTagNameNS("http://www.w3.org/1999/XSL/Transform", "stylesheet");
@@ -35,7 +40,8 @@ public class InvoiceConverter {
             Node xslNode = xslList.item(0);
             DOMSource xsltSource = new DOMSource(xslNode);
             xslNode.getParentNode().removeChild(xslNode);
-            transformer = TransformerFactory.newInstance().newTransformer(xsltSource);
+            TransformerFactory factory = TransformerFactory.newInstance();
+            transformer = factory.newTransformer(xsltSource);
         } else {
             NodeList embeddedList = doc.getElementsByTagNameNS("*", "EmbeddedDocumentBinaryObject");
             if (embeddedList.getLength() == 0) {
@@ -46,26 +52,26 @@ public class InvoiceConverter {
             byte[] decoded = Base64.getDecoder().decode(base64);
             String xsltContent = new String(decoded, StandardCharsets.UTF_8);
             Document xsltDoc = parseXmlString(xsltContent);
-            transformer = TransformerFactory.newInstance().newTransformer(new DOMSource(xsltDoc));
+            TransformerFactory factory = TransformerFactory.newInstance();
+            transformer = factory.newTransformer(new DOMSource(xsltDoc));
         }
 
         DOMSource xmlSource = new DOMSource(doc);
-        StringWriter writer = new StringWriter();
-        transformer.transform(xmlSource, new StreamResult(writer));
-        return writer.toString();
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            StreamResult result = new StreamResult(new OutputStreamWriter(baos, StandardCharsets.UTF_8));
+            transformer.transform(xmlSource, result);
+            return baos.toString(StandardCharsets.UTF_8);
+        }
     }
 
-    // ...existing code...
     public String htmlToPdfBase64(String html) throws Exception {
         String wkhtmltopdfPath = System.getenv("WKHTMLTOPDF_PATH");
         if (wkhtmltopdfPath == null || wkhtmltopdfPath.isEmpty()) {
-            wkhtmltopdfPath = "wkhtmltopdf"; // Sistem PATH'inden kullan
+            wkhtmltopdfPath = "wkhtmltopdf";
         }
 
-        // wkhtmltopdf komutunu çalıştır
         ProcessBuilder pb = new ProcessBuilder(wkhtmltopdfPath, "--encoding", "UTF-8", "-", "-");
         pb.redirectErrorStream(true);
-        // ...existing code...
 
         Process proc = pb.start();
 
