@@ -11,10 +11,39 @@ import org.xml.sax.InputSource;
 public class InvoiceConverter {
 
     private Document parseXmlString(String xmlContent) throws Exception {
+        if (xmlContent == null) {
+            throw new IllegalArgumentException("xmlContent is null");
+        }
+
+        // Remove UTF-8 BOM if present
         xmlContent = xmlContent.replaceAll("^\\uFEFF", "");
+
+        // If there are any stray characters before the first '<', strip them.
+        // This prevents errors like: "Content is not allowed in prolog." when
+        // the input contains logging, invisible chars or a malformed prefix.
+        int firstLt = xmlContent.indexOf('<');
+        if (firstLt > 0) {
+            xmlContent = xmlContent.substring(firstLt);
+        }
 
         // Baştaki boşluk/newline karakterlerini sil
         xmlContent = xmlContent.trim();
+
+        // Diagnostic: print the first part (visible and codepoints) to stderr to help
+        // debug malformed prefixes
+        try {
+            String preview = xmlContent.length() > 200 ? xmlContent.substring(0, 200) : xmlContent;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < Math.min(preview.length(), 80); i++) {
+                int cp = preview.charAt(i);
+                if (cp < 32 || cp > 126)
+                    sb.append(String.format("\\u%04X", cp));
+                else
+                    sb.append((char) cp);
+            }
+            System.err.println("[DEBUG] xmlContent preview: '" + sb.toString() + "'");
+        } catch (Exception ignore) {
+        }
 
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
@@ -48,15 +77,58 @@ public class InvoiceConverter {
             TransformerFactory factory = TransformerFactory.newInstance();
             transformer = factory.newTransformer(xsltSource);
         } else {
-            NodeList embeddedList = doc.getElementsByTagNameNS("*", "EmbeddedDocumentBinaryObject");
-            if (embeddedList.getLength() == 0) {
+            // Try to find an EmbeddedDocumentBinaryObject that actually contains XSLT.
+            // Prefer AdditionalDocumentReference elements with DocumentType == 'XSLT'.
+            NodeList addRefs = doc.getElementsByTagNameNS("*", "AdditionalDocumentReference");
+            Element embedded = null;
+            for (int i = 0; i < addRefs.getLength(); i++) {
+                Element ar = (Element) addRefs.item(i);
+                NodeList dtList = ar.getElementsByTagNameNS("*", "DocumentType");
+                if (dtList.getLength() > 0) {
+                    String dt = dtList.item(0).getTextContent();
+                    if (dt != null && dt.trim().equalsIgnoreCase("XSLT")) {
+                        NodeList embs = ar.getElementsByTagNameNS("*", "EmbeddedDocumentBinaryObject");
+                        if (embs.getLength() > 0) {
+                            embedded = (Element) embs.item(0);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Fallback heuristics: look for mimeCode, filename, or content that looks like
+            // XML/XSL
+            if (embedded == null) {
+                NodeList embList = doc.getElementsByTagNameNS("*", "EmbeddedDocumentBinaryObject");
+                for (int i = 0; i < embList.getLength(); i++) {
+                    Element e = (Element) embList.item(i);
+                    String mime = e.getAttribute("mimeCode");
+                    String filename = e.getAttribute("filename");
+                    String text = e.getTextContent().trim();
+                    if ((mime != null && mime.toLowerCase().contains("xsl")) ||
+                            (filename != null && (filename.toLowerCase().endsWith(".xsl")
+                                    || filename.toLowerCase().endsWith(".xslt")))
+                            ||
+                            (text.startsWith("<?xml") && text.contains("<xsl:stylesheet"))) {
+                        embedded = e;
+                        break;
+                    }
+                }
+            }
+
+            if (embedded == null) {
                 throw new Exception("XML içinde <xsl:stylesheet> veya gömülü XSLT bulunamadı!");
             }
-            Element embedded = (Element) embeddedList.item(0);
+
             String base64 = embedded.getTextContent().trim();
             byte[] decoded = Base64.getDecoder().decode(base64);
             String xsltContent = new String(decoded, StandardCharsets.UTF_8);
-            Document xsltDoc = parseXmlString(xsltContent);
+            Document xsltDoc;
+            try {
+                xsltDoc = parseXmlString(xsltContent);
+            } catch (Exception ex) {
+                throw new Exception("Gömülü XSLT çözümleme hatası: " + ex.getMessage(), ex);
+            }
             TransformerFactory factory = TransformerFactory.newInstance();
             transformer = factory.newTransformer(new DOMSource(xsltDoc));
         }
