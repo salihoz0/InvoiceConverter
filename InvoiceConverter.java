@@ -29,22 +29,6 @@ public class InvoiceConverter {
         // Baştaki boşluk/newline karakterlerini sil
         xmlContent = xmlContent.trim();
 
-        // Diagnostic: print the first part (visible and codepoints) to stderr to help
-        // debug malformed prefixes
-        try {
-            String preview = xmlContent.length() > 200 ? xmlContent.substring(0, 200) : xmlContent;
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < Math.min(preview.length(), 80); i++) {
-                int cp = preview.charAt(i);
-                if (cp < 32 || cp > 126)
-                    sb.append(String.format("\\u%04X", cp));
-                else
-                    sb.append((char) cp);
-            }
-            System.err.println("[DEBUG] xmlContent preview: '" + sb.toString() + "'");
-        } catch (Exception ignore) {
-        }
-
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         try {
@@ -121,7 +105,23 @@ public class InvoiceConverter {
             }
 
             String base64 = embedded.getTextContent().trim();
-            byte[] decoded = Base64.getDecoder().decode(base64);
+
+            // Safe Base64 decoding - remove invalid characters
+            base64 = base64.replaceAll("[^A-Za-z0-9+/=]", "");
+
+            // Add padding if necessary
+            int padding = 4 - (base64.length() % 4);
+            if (padding != 4) {
+                base64 += "=".repeat(padding);
+            }
+
+            byte[] decoded;
+            try {
+                decoded = Base64.getDecoder().decode(base64);
+            } catch (IllegalArgumentException e) {
+                throw new Exception("Base64 decode hatası: " + e.getMessage() + " - Content: " +
+                        base64.substring(0, Math.min(50, base64.length())));
+            }
             String xsltContent = new String(decoded, StandardCharsets.UTF_8);
             Document xsltDoc;
             try {
